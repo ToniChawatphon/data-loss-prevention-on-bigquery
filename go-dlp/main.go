@@ -1,12 +1,13 @@
 package main
 
 import (
-	"log"
-
 	"github.com/ToniChawatphon/data-loss-prevention-on-bigquery/app"
 )
 
 func main() {
+	var input string
+	input = "BTC"
+
 	app.Init()
-	log.Println(app.Setting.projectID)
+	app.Main.Dlp.Scan(input, app.Setting.ProjectID)
 }

@@ -11,38 +11,62 @@ import (
 
 var err error
 
-type Dlp struct {
-	client *dlp.Client
+type DlpClass struct {
+	Client *dlp.Client
 }
 
-func (d *Dlp) Connect(ctx context.Context) {
-	// Creates a DLP client.
-	d.client, err = dlp.NewClient(ctx)
-	if err != nil {
-		log.Fatalf("error creating DLP client: %v", err)
-	}
-	defer d.client.Close()
-}
-
-func (d *Dlp) runDlp(ctx context.Context, input string, projectID string) {
-	// The minimum likelihood required before returning a match.
-	minLikelihood := dlppb.Likelihood_POSSIBLE
-
-	// The maximum number of findings to report (0 = server maximum).
-	maxFindings := int32(0)
-
-	// Whether to include the matching string.
-	includeQuote := true
-
-	// The infoTypes of information to match.
-	infoTypes := []*dlppb.InfoType{
+func (d *DlpClass) getInfoType() []*dlppb.InfoType {
+	return []*dlppb.InfoType{
 		{
 			Name: "PERSON_NAME",
 		},
 		{
 			Name: "US_STATE",
 		},
+		{
+			Name: "STREET_ADDRESS",
+		},
+		{
+			Name: "LOCATION",
+		},
 	}
+}
+
+func (d *DlpClass) getResult(resp *dlppb.InspectContentResponse, includeQuote bool) {
+	findings := resp.GetResult().GetFindings()
+	if len(findings) == 0 {
+		log.Println("No findings.")
+	} else {
+		log.Println("Findings:")
+		for _, f := range findings {
+			if includeQuote {
+				log.Println("\tQuote: ", f.GetQuote())
+			}
+			log.Println("\tInfo type: ", f.GetInfoType().GetName())
+			log.Println("\tLikelihood: ", f.GetLikelihood())
+		}
+	}
+}
+
+func (d *DlpClass) Scan(input string, projectID string) {
+	log.Printf("Scanning keyword: %v in project: %v ...\n", input, projectID)
+	ctx := context.Background()
+
+	// Creates a DLP client.
+	d.Client, err = dlp.NewClient(ctx)
+	if err != nil {
+		log.Fatalf("error creating DLP client: %v", err)
+	}
+	defer d.Client.Close()
+
+	// The minimum likelihood required before returning a match.
+	minLikelihood := dlppb.Likelihood_POSSIBLE
+	// The maximum number of findings to report (0 = server maximum).
+	maxFindings := int32(0)
+	// Whether to include the matching string.
+	includeQuote := true
+	// The infoTypes of information to match.
+	infoTypes := d.getInfoType()
 
 	// Construct item to inspect.
 	item := &dlppb.ContentItem{
@@ -66,20 +90,10 @@ func (d *Dlp) runDlp(ctx context.Context, input string, projectID string) {
 	}
 
 	// Run request.
-	resp, err := d.client.InspectContent(ctx, req)
+	resp, err := d.Client.InspectContent(ctx, req)
 	if err != nil {
 		log.Fatal(err)
 	}
-	findings := resp.GetResult().GetFindings()
-	if len(findings) == 0 {
-		fmt.Println("No findings.")
-	}
-	fmt.Println("Findings:")
-	for _, f := range findings {
-		if includeQuote {
-			fmt.Println("\tQuote: ", f.GetQuote())
-		}
-		fmt.Println("\tInfo type: ", f.GetInfoType().GetName())
-		fmt.Println("\tLikelihood: ", f.GetLikelihood())
-	}
+
+	d.getResult(resp, includeQuote)
 }
